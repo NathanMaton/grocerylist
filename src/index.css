@@ -1,3 +1,9 @@
 @import 'tailwindcss/base';
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
+
+/* Hide Replit badge */
+#replit-badge,
+#replitBadge {
+  display: none !important;
+}

@@ -25,31 +25,43 @@ const GroceryList: React.FC<GroceryListProps> = ({ items, setItems }) => {
     const fetchData = async () => {
       try {
         const user = auth.currentUser;
-        if (user && listId) {
-          const listDocRef = doc(db, 'groceryLists', listId);
-          const listDocSnap = await getDoc(listDocRef);
-          
-          if (listDocSnap.exists()) {
-            const listData = listDocSnap.data() as GroceryListData;
-            if (listData.ownerId === user.uid || listData.sharedWith.includes(user.uid)) {
-              setListData({ ...listData, id: listDocSnap.id });
-              // Update the user's lastListId
-              await updateDoc(doc(db, 'users', user.uid), { lastListId: listId });
+        if (user) {
+          if (listId === 'new') {
+            // Create a new list
+            const newListRef = await addDoc(collection(db, 'groceryLists'), {
+              name: 'New Grocery List',
+              ownerId: user.uid,
+              createdAt: new Date(),
+              sharedWith: []
+            });
+            navigate(`/grocery-list/${newListRef.id}`);
+          } else if (listId) {
+            // Fetch existing list
+            const listDocRef = doc(db, 'groceryLists', listId);
+            const listDocSnap = await getDoc(listDocRef);
+            
+            if (listDocSnap.exists()) {
+              const listData = listDocSnap.data() as GroceryListData;
+              if (listData.ownerId === user.uid || listData.sharedWith.includes(user.uid)) {
+                setListData({ ...listData, id: listDocSnap.id });
+                // Update the user's lastListId
+                await updateDoc(doc(db, 'users', user.uid), { lastListId: listId });
+              } else {
+                setError("You don't have permission to view this list.");
+                navigate('/my-lists');
+              }
             } else {
-              setError("You don't have permission to view this list.");
+              setError("List not found.");
               navigate('/my-lists');
             }
-          } else {
-            setError("List not found.");
-            navigate('/my-lists');
           }
         } else {
-          console.error("No authenticated user or list ID");
-          setError("No authenticated user or list ID. Please sign in and try again.");
+          console.error("No authenticated user");
+          setError("Please sign in to view or create a list.");
         }
       } catch (err) {
-        console.error("Error fetching grocery list:", err);
-        setError(`Failed to load grocery list: ${err instanceof Error ? err.message : String(err)}`);
+        console.error("Error fetching or creating grocery list:", err);
+        setError(`Failed to load or create grocery list: ${err instanceof Error ? err.message : String(err)}`);
       }
     };
 
@@ -105,7 +117,15 @@ const GroceryList: React.FC<GroceryListProps> = ({ items, setItems }) => {
       }
 
       const sharedUser = userSnapshot.docs[0];
-      const updatedSharedWith = [...listData.sharedWith, sharedUser.id];
+      const sharedUserId = sharedUser.id;
+
+      // Check if the list is already shared with this user
+      if (listData.sharedWith.includes(sharedUserId)) {
+        alert('This list is already shared with this user.');
+        return;
+      }
+
+      const updatedSharedWith = [...listData.sharedWith, sharedUserId];
 
       await updateDoc(doc(db, 'groceryLists', listData.id), {
         sharedWith: updatedSharedWith
@@ -233,7 +253,7 @@ const GroceryList: React.FC<GroceryListProps> = ({ items, setItems }) => {
             placeholder="Enter email to share"
           />
           <button type="submit" className="bg-green-500 text-white p-2 rounded-r">
-            <Share2 size={24} />
+            Share
           </button>
         </div>
       </form>
